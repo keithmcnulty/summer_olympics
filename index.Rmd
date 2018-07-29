@@ -1,0 +1,199 @@
+---
+title: "Summer Olympic Sports Drilldown"
+author: "Keith McNulty"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: "cerulean"
+runtime: shiny
+---
+
+<style type="text/css">
+
+body{ /* Normal  */
+   font-size: 10px;
+}
+</style>
+
+```{r setup, include = FALSE}
+
+# load dataset (available at https://www.kaggle.com/the-guardian/olympic-games#summer.csv)
+
+data <- read.csv("C:/R/summer_olympics/summer.csv")
+
+library(flexdashboard)
+library(dplyr)
+
+## want to allow filtering on any column except those we will use for aggregating
+
+fields <- colnames(data)
+fields <- fields[!fields %in% c("Athlete", "Medal")] 
+
+
+## filter functions
+
+
+filter1_by <- function(df, f1, fv1) {
+  filter_f1 <- quo(f1)
+  
+  df %>%
+   dplyr::filter_at(vars(!!filter_f1), all_vars(. == fv1))
+}
+
+
+filter2_by <- function(df, f1, fv1, f2, fv2) {
+  filter_f1 <- quo(f1)
+  filter_f2 <- quo(f2)
+
+  df %>%
+   dplyr::filter_at(vars(!!filter_f1), all_vars(. == fv1)) %>%
+    dplyr::filter_at(vars(!!filter_f2), all_vars(. == fv2))
+}
+
+filter3_by <- function(df, f1, fv1, f2, fv2, f3, fv3) {
+  filter_f1 <- quo(f1)
+  filter_f2 <- quo(f2)
+  filter_f3 <- quo(f3)
+
+  df %>%
+   dplyr::filter_at(vars(!!filter_f1), all_vars(. == fv1)) %>%
+    dplyr::filter_at(vars(!!filter_f2), all_vars(. == fv2)) %>%
+    dplyr::filter_at(vars(!!filter_f3), all_vars(. == fv3))
+
+}
+
+
+
+
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+Inputs {.sidebar}
+-----------------------------------------------
+
+
+Select your filter fields and values.
+
+``` {r input, echo = FALSE}
+
+mainPanel(
+ selectInput("filter1", "Select filter criteria 1:", choices = fields),
+ uiOutput("filter1choice"),
+ checkboxInput("filter2req", "Add second filter?"),
+ conditionalPanel(condition = 'input.filter2req', 
+                  uiOutput("filter2eval"),
+                  uiOutput("filter2choice"),
+                  checkboxInput("filter3req", "Add third filter?")),
+ conditionalPanel(condition = 'input.filter3req & input.filter2req', 
+                  uiOutput("filter3eval"),
+                  uiOutput("filter3choice")),
+ width = "350px"
+)
+
+## create ui Outputs
+
+choicevec1 <- reactive({
+    data %>%  dplyr::select(input$filter1) %>% unique() %>% dplyr::arrange_(input$filter1)
+}) 
+
+output$filter1choice <- renderUI(
+  selectInput("filter1val", "Select filter 1 condition:", choices = choicevec1())
+)
+
+output$filter2eval <- renderUI({
+  selectInput("filter2", "Select filter criteria 2:", choices = sort(fields[fields != input$filter1]))
+})
+
+choicevec2 <- reactive({
+    filter1_by(data, input$filter1, input$filter1val) %>% select(input$filter2) %>% unique() %>% dplyr::arrange_(input$filter2)
+}) 
+
+output$filter2choice <- renderUI(
+  selectInput("filter2val", "Select filter 2 condition:", choices = choicevec2())
+)
+
+output$filter3eval <- renderUI({
+  selectInput("filter3", "Select filter criteria 3:", choices = sort(fields[!fields %in% c(input$filter1, input$filter2)]))
+})
+
+choicevec3 <- reactive({
+    filter2_by(data, input$filter1, input$filter1val, input$filter2, input$filter2val) %>% select(input$filter3) %>% unique() %>% dplyr::arrange_(input$filter3)
+}) 
+
+output$filter3choice <- renderUI(
+  selectInput("filter3val", "Select filter 3 condition:", choices = choicevec3())
+)
+
+
+
+```
+
+
+
+
+Column 
+------------------------------------------------------
+
+### Medal Table
+
+
+```{r}
+
+## filter data
+
+filtered_data <- reactive({
+  
+  if (input$filter3req & input$filter2req) {
+    filter3_by(data, input$filter1, input$filter1val, input$filter2, input$filter2val, input$filter3, input$filter3val)
+      } else if (input$filter2req) {
+    filter2_by(data, input$filter1, input$filter1val, input$filter2, input$filter2val)
+      } else {
+    filter1_by(data, input$filter1, input$filter1val)
+      }
+  
+})
+
+# create stats on medals
+
+medals <- reactive({
+  
+  filtered_data <- filtered_data()
+  
+  # adjust medal values to allow easy ordering
+  
+  filtered_data$Medal <- gsub("Gold", "1 - Gold", filtered_data$Medal)
+  filtered_data$Medal <- gsub("Silver", "2 - Silver", filtered_data$Medal)
+  filtered_data$Medal <- gsub("Bronze", "3 - Bronze", filtered_data$Medal)
+  
+  filtered_data %>% 
+    dplyr::group_by(Medal) %>% 
+    dplyr::summarise(Total = n())
+  
+})
+
+renderTable(medals())
+
+```
+
+### Medal Winner Table
+
+``` {r}
+
+medal_winners <- reactive({
+  
+  filtered_data <- filtered_data()
+  
+  # adjust medal values to allow easy ordering
+  
+  filtered_data$Medal <- gsub("Gold", "1 - Gold", filtered_data$Medal)
+  filtered_data$Medal <- gsub("Silver", "2 - Silver", filtered_data$Medal)
+  filtered_data$Medal <- gsub("Bronze", "3 - Bronze", filtered_data$Medal)
+  
+  filtered_data %>% 
+    dplyr::select(Event, Medal, Athlete) %>% 
+    dplyr::arrange(Event, Medal, Athlete)
+})
+
+renderTable(medal_winners())
+
+```
