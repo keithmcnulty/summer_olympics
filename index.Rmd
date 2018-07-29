@@ -22,7 +22,7 @@ body{ /* Normal  */
 
 # load dataset (available at https://www.kaggle.com/the-guardian/olympic-games#summer.csv)
 
-data <- read.csv("C:/R/summer_olympics/summer.csv")
+data <- read.csv("summer.csv")
 
 library(flexdashboard)
 library(dplyr)
