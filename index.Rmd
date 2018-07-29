@@ -5,6 +5,9 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     theme: "cerulean"
+    navbar: 
+      - {icon: "fa-github", href: "https://github.com/keithmcnulty/summer_olympics/blob/master/index.Rmd"}
+      - {icon: "fa-envelope", href: "mailto:keith.mcnulty@gmail.com"}
 runtime: shiny
 ---
 
